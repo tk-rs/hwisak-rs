@@ -19,16 +19,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLIBCPUID_ENABLE_TESTS=ON
 echo "Building the project..."
 cmake --build build
 
-# Prompt for admin privileges for installation with a 20-second timeout
-echo "Do you want to install the build? This may require admin privileges. (default: No)"
-read -t 20 -p "Press 'y' or 'Y' to confirm, or wait 20 seconds to skip: " confirm
-
-# Check the user's input
-if [[ $? -eq 0 && $confirm =~ ^[Yy]$ ]]; then
-    echo "Installing the build..."
-    sudo cmake --install build
-else
-    echo "Installation skipped."
-fi
+echo "Installing the build..."
+cmake --install build
 
 echo "Script completed."
