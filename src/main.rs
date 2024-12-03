@@ -6,4 +6,5 @@ fn main() {
 
     let cpu = CPU::fetch();
     println!("{:?}", cpu);
+
 }
