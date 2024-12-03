@@ -52,11 +52,11 @@ enum eCPUDetails {
 }
 
 trait Intel {
-    fn extract(processor_name: String) -> Option<sCPUDetails>;
+    fn extract(processor_name: String) -> Option<eCPUDetails>;
 }
 
 trait AMD {
-    fn extract(processor_name: String) -> Option<AmdCPU>;
+    fn extract(processor_name: String) -> Option<eCPUDetails>;
 }
 
 #[derive(Debug)]
@@ -114,7 +114,7 @@ impl CPU {
 }
 
 impl Intel for sCPUDetails {
-    fn extract(processor_name: String) -> Option<sCPUDetails> {
+    fn extract(processor_name: String) -> Option<eCPUDetails> {
         // Split the string by whitespace
         let parts: Vec<&str> = processor_name.split_whitespace().collect();
 
@@ -158,7 +158,7 @@ impl Intel for sCPUDetails {
 }
 
 impl AMD for sCPUDetails {
-    fn extract(processor_name: String) -> Option<sCPUDetails> {
+    fn extract(processor_name: String) -> Option<eCPUDetails> {
         let parts: Vec<&str> = processor_name.split_whitespace().collect();
 
         // Find the Ryzen performance tier
@@ -184,12 +184,12 @@ impl AMD for sCPUDetails {
             (&remaining[..], "")
         };
 
-        Some(sCPUDetails {
+        Some(eCPUDetails::Amd(sCPUDetails{
             performance_tier,
             generation: generation as u8,
             model: model.to_string(),
             suffix: suffix.to_string(),
-        })
+        }))
     }
 }
 
