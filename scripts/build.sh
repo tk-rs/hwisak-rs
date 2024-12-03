@@ -1,7 +1,7 @@
-#!/bin/bash
-
 # Exit on error
 set -e
+
+cd ..
 
 # Fetch submodules
 echo "Fetching submodules..."
@@ -9,7 +9,7 @@ git submodule update --init --recursive
 
 # Navigate to the libcpuid directory
 echo "Changing directory to libcpuid..."
-cd ../libcpuid
+cd libcpuid
 
 # Run CMake configuration
 echo "Running CMake configuration..."
