@@ -3,6 +3,7 @@ use amd::eAMDData;
 use rusqlite::{params, Connection, Error};
 use sysinfo::{CpuRefreshKind, RefreshKind, System};
 use crate::cpu::amd::AMDData;
+use crate::cpu::eCPUDetails::Intel;
 use crate::cpu::intel::{eIntelData, IntelData};
 
 pub mod intel;
@@ -120,6 +121,9 @@ impl CPUDetails {
         println!("Vendor: {}", vendor);
         println!("Brand: {}", brand);
         println!("Model: {}", model);
+        
+        IntelData::gen_db();
+        AMDData::gen_db();
 
         let details = if vendor == String::from("GenuineIntel") {
             let _temp = IntelData::fetch(

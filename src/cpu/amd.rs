@@ -3,17 +3,18 @@ use rusqlite::{params, Connection, Error};
 use crate::cpu::{eCPUDetails, EnumCPUData};
 use crate::cpu::intel::eIntelData;
 use crate::cpu::private::Database;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct AMDData {
     pub name: String,
     pub family: String,
     pub series: String,
-    pub formFactor: FormFactor,
+    pub formFactor: Vec<FormFactor>,
     pub cores: usize,
     pub threads: usize,
-    pub boost_clock: usize,
-    pub base_clock: usize,
+    pub boost_clock: f32,
+    pub base_clock: f32,
     pub L1Cache: String,
     pub L2Cache: String,
     pub L3Cache: String,
@@ -39,10 +40,20 @@ pub struct AMDData {
 }
 
 #[derive(Debug)]
-struct ProductID {
+pub struct ProductID {
     pub boxed: Option<String>,
     pub tray: Option<String>,
     pub mpk: Option<String>,
+}
+
+impl ProductID {
+    pub fn new(boxed: &str, tray: &str, mpk: &str) -> Self {
+        ProductID {
+            boxed: if boxed.is_empty() { None } else { Some(boxed.to_string()) },
+            tray: if tray.is_empty() { None } else { Some(tray.to_string()) },
+            mpk: if mpk.is_empty() { None } else { Some(mpk.to_string()) },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -52,15 +63,40 @@ pub struct Graphics {
     pub frequency: usize,
 }
 
+impl Graphics {
+    pub fn new(model: &str, cores: &str, frequency: &str) -> Self {
+        Graphics {
+            model: model.to_string(),
+            cores: cores.parse().unwrap_or(0),
+            frequency: frequency.replace(" MHz", "").parse().unwrap_or(0),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum FormFactor {
     Laptops,
     Desktops,
     BoxedProcessor,
-    // 1L Desktops
     TinyDesktops,
     MobileWorkstations,
     Handheld,
+}
+
+impl FromStr for FormFactor {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "Laptops" => Ok(FormFactor::Laptops),
+            "Desktops" => Ok(FormFactor::Desktops),
+            "Boxed Processor" => Ok(FormFactor::BoxedProcessor),
+            "1L Desktops" | "1L Desktop" => Ok(FormFactor::TinyDesktops),
+            "Mobile Workstations" => Ok(FormFactor::MobileWorkstations),
+            "Handheld" => Ok(FormFactor::Handheld),
+            _ => Err(format!("Unknown form factor: {}", s))
+        }
+    }
 }
 
 pub enum eAMDData {
@@ -107,95 +143,100 @@ impl eAMDData {
     }
 }
 
+fn parse_form_factors(s: &str) -> Vec<FormFactor> {
+    s.trim_matches('"')
+        .split(',')
+        .map(str::trim)
+        .filter_map(|s| FormFactor::from_str(s).ok())
+        .collect()
+}
+
+fn split_quoted(s: &str) -> Vec<String> {
+    if s.starts_with('"') && s.ends_with('"') {
+        s.trim_matches('"')
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect()
+    } else {
+        vec![s.to_string()]
+    }
+}
+
+// Add this helper function
+fn parse_ghz(s: &str) -> Result<f32, Box<dyn std::error::Error>> {
+    if s.is_empty() {
+        return Ok(0.0);
+    }
+    s.replace("Up to ", "")
+     .replace(" GHz", "")
+     .parse::<f32>()
+     .map_err(|e| e.into())
+}
+
 impl AMDData {
-    fn parse_csv_line(line: &str) -> AMDData {
-        let fields: Vec<&str> = line.split(',').collect();
-    
-        // Helper function to clean and parse integers
-        fn parse_int(s: &str) -> usize {
-            s.chars()
-                .filter(|c| c.is_digit(10))
-                .collect::<String>()
-                .parse()
-                .unwrap_or(0)
-        }
-    
-        // Helper function for boolean options
-        fn parse_bool_option(s: &str) -> Option<bool> {
-            match s.trim().to_lowercase().as_str() {
-                "yes" => Some(true),
-                "no" => Some(false),
-                _ => None
+    pub fn parse_csv_line(line: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut fields = Vec::new();
+        let mut current_field = String::new();
+        let mut in_quotes = false;
+
+        // Parse CSV considering quoted fields
+        for c in line.chars() {
+            match c {
+                '"' => in_quotes = !in_quotes,
+                ',' if !in_quotes => {
+                    fields.push(current_field.trim().to_string());
+                    current_field.clear();
+                },
+                _ => current_field.push(c)
             }
+        }
+        fields.push(current_field.trim().to_string());
+
+        // Ensure we have enough fields by padding with empty strings
+        while fields.len() < 34 {
+            fields.push(String::new());
         }
 
-        fn parse_form_factors(input: &str) -> FormFactor {
-            let input = input.trim().to_lowercase();
-        
-            if input.contains("laptop") || input.contains("notebook") {
-                FormFactor::Laptops
-            } else if input.contains("1l") || input.contains("mini") || input.contains("tiny") {
-                FormFactor::TinyDesktops
-            } else if input.contains("boxed processor") || input.contains("pib") {
-                FormFactor::BoxedProcessor
-            } else if input.contains("mobile workstation") {
-                FormFactor::MobileWorkstations
-            } else if input.contains("handheld") || input.contains("portable") {
-                FormFactor::Handheld
-            } else if input.contains("desktop") || input.is_empty() {
-                FormFactor::Desktops  // Default case
-            } else {
-                println!("Fallback for fn parse_form_factors");
-                FormFactor::Desktops  // Fallback
-            }
-        }
-    
-        AMDData {
-            name: fields.get(0).unwrap_or(&"Unknown").trim().to_string(),
-            family: fields.get(1).unwrap_or(&"Unknown").trim().to_string(),
-            series: fields.get(2).unwrap_or(&"Unknown").trim().to_string(),
-            formFactor: parse_form_factors(fields.get(3).unwrap_or(&"")),
-            cores: parse_int(fields.get(4).unwrap_or(&"0")),
-            threads: parse_int(fields.get(5).unwrap_or(&"0")),
-            boost_clock: parse_int(fields.get(6).unwrap_or(&"0")),
-            base_clock: parse_int(fields.get(7).unwrap_or(&"0")),
-            L1Cache: fields.get(8).unwrap_or(&"").trim().to_string(),
-            L2Cache: fields.get(9).unwrap_or(&"").trim().to_string(),
-            L3Cache: fields.get(10).unwrap_or(&"").trim().to_string(),
-            DefaultTDP: fields.get(11).unwrap_or(&"").trim().to_string(),
-            AMDConfigurableTDP: fields.get(12).unwrap_or(&"").trim().to_string(),
-            lithography: fields.get(13).unwrap_or(&"").trim().to_string(),
-            overclocking_enabled: parse_bool_option(fields.get(14).unwrap_or(&"")),
-            cpu_socket: fields.get(15).unwrap_or(&"").trim().to_string(),
-            PIB: fields.get(16).unwrap_or(&"").trim().to_string(),
-            MPK: fields.get(17).unwrap_or(&"").trim().to_string(),
-            recommended_cooler: fields.get(18)
-                .filter(|&s| !s.trim().is_empty())
-                .map(|s| s.trim().to_string()),
-            operating_temperature_max: parse_int(fields.get(19).unwrap_or(&"0")),
-            launch_date: fields.get(20).unwrap_or(&"").trim().to_string(),
-            os_support: fields.get(21)
-                .map(|s| s.split(',').map(|os| os.trim().to_string()).collect())
-                .unwrap_or_else(|| vec![]),
-            PCI_Express_version: fields.get(22).unwrap_or(&"").trim().to_string(),
-            system_memory_type: fields.get(23).unwrap_or(&"").trim().to_string(),
-            memory_channels: parse_int(fields.get(24).unwrap_or(&"0")),
-            system_memory_specification: fields.get(25).unwrap_or(&"").trim().to_string(),
+        Ok(AMDData {
+            name: fields[0].clone(),
+            family: fields[1].clone(),
+            series: fields[2].clone(),
+            formFactor: if fields[3].is_empty() { Vec::new() } else { parse_form_factors(&fields[3]) },
+            cores: fields[4].parse().unwrap_or(0),
+            threads: fields[5].parse().unwrap_or(0),
+            boost_clock: parse_ghz(&fields[6]).unwrap_or(0.0),
+            base_clock: parse_ghz(&fields[7]).unwrap_or(0.0),
+            L1Cache: fields[8].clone(),
+            L2Cache: fields[9].clone(),
+            L3Cache: fields[10].clone(),
+            DefaultTDP: fields[11].clone(),
+            AMDConfigurableTDP: fields[12].clone(),
+            lithography: fields[13].clone(),
+            overclocking_enabled: Some(fields[14].to_lowercase() == "yes"),
+            cpu_socket: fields[15].clone(),
+            PIB: fields[16].clone(),
+            MPK: fields[18].clone(),
+            recommended_cooler: if fields[17].is_empty() { None } else { Some(fields[17].clone()) },
+            operating_temperature_max: fields[19].replace("°C", "").parse().unwrap_or(0),
+            launch_date: fields[20].clone(),
+            os_support: if fields[21].is_empty() { Vec::new() } else { split_quoted(&fields[21]) },
+            PCI_Express_version: fields[22].clone(),
+            system_memory_type: fields[23].clone(),
+            memory_channels: fields[24].parse().unwrap_or(0),
+            system_memory_specification: fields[25].clone(),
             graphics: Graphics {
-                model: fields.get(26).unwrap_or(&"").trim().to_string(),
-                cores: parse_int(fields.get(27).unwrap_or(&"0")),
-                frequency: parse_int(fields.get(28).unwrap_or(&"0")),
+                model: fields[26].clone(),
+                cores: fields[27].parse().unwrap_or(0),
+                frequency: fields[28].replace(" MHz", "").parse().unwrap_or(0)
             },
-            AMD_RyzenAIEnabled: parse_bool_option(fields.get(29).unwrap_or(&"")),
+            AMD_RyzenAIEnabled: Some(fields[29].to_lowercase() == "available"),
             product_id: ProductID {
-                boxed: fields.get(30).filter(|&s| !s.trim().is_empty()).map(|s| s.trim().to_string()),
-                tray: fields.get(31).filter(|&s| !s.trim().is_empty()).map(|s| s.trim().to_string()),
-                mpk: fields.get(32).filter(|&s| !s.trim().is_empty()).map(|s| s.trim().to_string()),
+                boxed: if fields[30].is_empty() { None } else { Some(fields[30].clone()) },
+                tray: if fields[31].is_empty() { None } else { Some(fields[31].clone()) },
+                mpk: if fields[32].is_empty() { None } else { Some(fields[32].clone()) }
             },
-            supported_technologies: fields.get(33)
-                .map(|s| s.split(',').map(|t| t.trim().to_string()).collect())
-                .unwrap_or_else(|| vec![]),
-        }
+            supported_technologies: if fields[33].is_empty() { Vec::new() } else { split_quoted(&fields[33]) }
+        })
     }
 }
 
@@ -237,15 +278,15 @@ impl crate::cpu::Database for AMDData {
                     println!("Error getting formFactor: {}", e);
                     "Unknown".to_string()
                 }).as_str() {
-                    "Laptops" => FormFactor::Laptops,
-                    "Desktops" => FormFactor::Desktops,
-                    "BoxedProcessor" => FormFactor::BoxedProcessor,
-                    "TinyDesktops" => FormFactor::TinyDesktops,
-                    "MobileWorkstations" => FormFactor::MobileWorkstations,
-                    "Handheld" => FormFactor::Handheld,
+                    "Laptops" => vec![FormFactor::Laptops],
+                    "Desktops" => vec![FormFactor::Desktops],
+                    "BoxedProcessor" => vec![FormFactor::BoxedProcessor],
+                    "TinyDesktops" => vec![FormFactor::TinyDesktops],
+                    "MobileWorkstations" => vec![FormFactor::MobileWorkstations],
+                    "Handheld" => vec![FormFactor::Handheld],
                     _ => {
                         println!("Unknown FormFactor: {}", row.get::<_, String>(3).unwrap_or_else(|e| e.to_string()));
-                        FormFactor::Desktops // Default to Desktops if unknown
+                        vec![FormFactor::Desktops] // Default to Desktops if unknown
                     }
                 },
                 cores: row.get::<_, String>(4).unwrap_or_else(|e| {
@@ -259,11 +300,11 @@ impl crate::cpu::Database for AMDData {
                 boost_clock: row.get::<_, String>(6).unwrap_or_else(|e| {
                     println!("Error getting boost_clock: {}", e);
                     "0".to_string()
-                }).parse().unwrap_or(0),
+                }).parse::<f32>().unwrap_or(0.0) ,
                 base_clock: row.get::<_, String>(7).unwrap_or_else(|e| {
                     println!("Error getting base_clock: {}", e);
                     "0".to_string()
-                }).parse().unwrap_or(0),
+                }).parse::<f32>().unwrap_or(0.0),
                 L1Cache: row.get(8).unwrap_or_else(|e| {
                     println!("Error getting L1Cache: {}", e);
                     "Unknown".to_string()
@@ -434,44 +475,47 @@ impl crate::cpu::private::Database for AMDData {
                 })?;
     
                 for line in content.lines().skip(1) {
-                    let amd_data = Self::parse_csv_line(line);
-                    
-                    stmt.execute(params![
-                        amd_data.name,
-                        amd_data.family,
-                        amd_data.series,
-                        format!("{:?}", amd_data.formFactor),
-                        amd_data.cores,
-                        amd_data.threads,
-                        amd_data.boost_clock,
-                        amd_data.base_clock,
-                        amd_data.L1Cache,
-                        amd_data.L2Cache,
-                        amd_data.L3Cache,
-                        amd_data.DefaultTDP,
-                        amd_data.AMDConfigurableTDP,
-                        amd_data.lithography,
-                        amd_data.overclocking_enabled.map_or("N/A".to_string(), |b| b.to_string()),
-                        amd_data.cpu_socket,
-                        amd_data.PIB,
-                        amd_data.MPK,
-                        amd_data.recommended_cooler.unwrap_or_default(),
-                        amd_data.operating_temperature_max,
-                        amd_data.launch_date,
-                        amd_data.os_support.join(","),
-                        amd_data.PCI_Express_version,
-                        amd_data.system_memory_type,
-                        amd_data.memory_channels,
-                        amd_data.system_memory_specification,
-                        amd_data.graphics.model,
-                        amd_data.graphics.cores,
-                        amd_data.graphics.frequency,
-                        amd_data.AMD_RyzenAIEnabled.map_or("N/A".to_string(), |b| b.to_string()),
-                        amd_data.product_id.boxed.unwrap_or_default(),
-                        amd_data.product_id.tray.unwrap_or_default(),
-                        amd_data.product_id.mpk.unwrap_or_default(),
-                        amd_data.supported_technologies.join(",")
-                    ])?;
+                    if let Ok(amd_data) = Self::parse_csv_line(line) {
+                        stmt.execute(params![
+                            amd_data.name,
+                            amd_data.family,
+                            amd_data.series,
+                            format!("{:?}", amd_data.formFactor),
+                            amd_data.cores,
+                            amd_data.threads,
+                            amd_data.boost_clock.to_string(),
+                            amd_data.base_clock.to_string(),
+                            amd_data.L1Cache,
+                            amd_data.L2Cache,
+                            amd_data.L3Cache,
+                            amd_data.DefaultTDP,
+                            amd_data.AMDConfigurableTDP,
+                            amd_data.lithography,
+                            amd_data.overclocking_enabled.map_or("N/A".to_string(), |b| b.to_string()),
+                            amd_data.cpu_socket,
+                            amd_data.PIB,
+                            amd_data.MPK,
+                            amd_data.recommended_cooler.unwrap_or_default(),
+                            amd_data.operating_temperature_max,
+                            amd_data.launch_date,
+                            amd_data.os_support.join(","),
+                            amd_data.PCI_Express_version,
+                            amd_data.system_memory_type,
+                            amd_data.memory_channels,
+                            amd_data.system_memory_specification,
+                            amd_data.graphics.model,
+                            amd_data.graphics.cores,
+                            amd_data.graphics.frequency,
+                            amd_data.AMD_RyzenAIEnabled.map_or("N/A".to_string(), |b| b.to_string()),
+                            amd_data.product_id.boxed.unwrap_or_default(),
+                            amd_data.product_id.tray.unwrap_or_default(),
+                            amd_data.product_id.mpk.unwrap_or_default(),
+                            amd_data.supported_technologies.join(",")
+                        ])?;
+                    } else {
+                        eprintln!("Skipping invalid line: {}", line);
+                        continue;
+                    }
                 }
             }
         }
