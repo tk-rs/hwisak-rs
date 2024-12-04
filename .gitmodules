@@ -1,3 +1,6 @@
 [submodule "res/cpu/intel/intel-processors"]
 	path = res/cpu/intel/intel-processors
 	url = https://github.com/toUpperCase78/intel-processors
+[submodule "res/cpu/amd/AMDCpuData"]
+	path = res/cpu/amd/AMDCpuData
+	url = https://github.com/tk-rs/AMDCpuData/

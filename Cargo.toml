@@ -1,7 +1,9 @@
 [package]
-name = "hwinfo-rs"
+name = "hwisak-rs"
 version = "0.1.0"
 edition = "2021"
+authors = ["Thribhu K"]
+repository = "https://github.com/tk-rs/hwisak-rs"
 
 [dependencies]
 os_info = "3.9.0"
