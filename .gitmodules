@@ -1,0 +1,3 @@
+[submodule "res/cpu/intel/intel-processors"]
+	path = res/cpu/intel/intel-processors
+	url = https://github.com/toUpperCase78/intel-processors
