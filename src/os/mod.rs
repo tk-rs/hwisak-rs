@@ -1,11 +1,11 @@
 #[derive(Debug)]
 pub struct OSDetails {
-    os_type: String,
-    version: String,
-    edition: String,
-    codename: String,
-    bitness: String,
-    architecture: String,
+    pub os_type: String,
+    pub version: String,
+    pub edition: String,
+    pub codename: String,
+    pub bitness: String,
+    pub architecture: String,
 }
 
 impl OSDetails {

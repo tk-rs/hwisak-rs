@@ -14,6 +14,37 @@ This is inspired by the [hwinfo](https://github.com/lfreist/hwinfo) C++ library,
 code in Rust, so I decided to make my own library but more "jam-packed".
 
 ## Example
+```rust
+use hwisak_rs::*;
+
+fn main() {
+    hwisak_rs::init();     // Recommended, not mandatory, sets up the db for the CPU info
+
+    // ------------------------ //
+    let cpu = CPUDetails::fetch();
+    let name = &cpu.brand;
+    
+    let lithography = match &cpu_details.details {
+        eCPUDetails::Intel(intel) => { println!("{}", intel.lithography.unwrap_or_default()); }
+        eCPUDetails::AMD(amd) => { println!("{}", amd.lithography); }
+        eCPUDetails::Else => { unreachable!() }
+    };
+
+    println!("CPU Brand: {}", name);
+    println!("CPU Lithography: {}", lithography);
+    // ------------------------ //
+    let os = OSDetails::fetch();
+    let os_type = os.os_type;
+    
+    println!("OS Type: {}", os_type);
+    // ------------------------ //
+    let is_supported = GPUDetails::fetch()
+        .unwrap_or(GPUDetails::empty())
+        .backend_details
+        .iter().next().unwrap()
+        .supported;
+}
+```
 
 ## How to use
 This project is both a library and a binary. The library can be used by other Rust projects, while the binary can be 

@@ -2,6 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/res/cpu/amd/AMDCpuData" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/res/cpu/intel/intel-processors" vcs="Git" />
   </component>
 </project>

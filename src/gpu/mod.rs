@@ -11,19 +11,19 @@ pub enum BackendType {
 
 #[derive(Debug)]
 pub struct BackendInfo {
-    backend: BackendType,
-    supported: bool,
-    driver: Option<String>,
-    driver_info: Option<String>,
+    pub backend: BackendType,
+    pub supported: bool,
+    pub driver: Option<String>,
+    pub driver_info: Option<String>,
 }
 
 #[derive(Debug)]
 pub struct GPUDetails {
-    name: String,
-    vendor: u32,
-    device: u32,
-    device_type: DeviceType,
-    backend_details: Vec<BackendInfo>,
+    pub name: String,
+    pub vendor: u32,
+    pub device: u32,
+    pub device_type: DeviceType,
+    pub backend_details: Vec<BackendInfo>,
 }
 
 impl GPUDetails {
@@ -76,7 +76,7 @@ impl GPUDetails {
         })
     }
 
-    fn create_empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             name: String::from("No GPU detected"),
             vendor: 0,

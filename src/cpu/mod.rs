@@ -89,12 +89,12 @@ pub(crate) mod private {
 
 #[derive(Debug)]
 pub struct CPUDetails {
-    cores: usize,
-    vendor: String,
-    brand: String,
-    model: String,
-    frequency: usize,
-    details: eCPUDetails,
+    pub cores: usize,
+    pub vendor: String,
+    pub brand: String,
+    pub model: String,
+    pub frequency: usize,
+    pub details: eCPUDetails,
 }
 
 #[derive(Debug)]
