@@ -1,5 +1,5 @@
 #[derive(Debug)]
-pub struct OS {
+pub struct OSDetails {
     os_type: String,
     version: String,
     edition: String,
@@ -8,7 +8,7 @@ pub struct OS {
     architecture: String,
 }
 
-impl OS {
+impl OSDetails {
     pub fn fetch() -> Self {
         let info = os_info::get();
 

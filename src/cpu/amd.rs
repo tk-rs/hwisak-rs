@@ -242,7 +242,9 @@ impl AMDData {
 
 impl crate::cpu::Database for AMDData {
     fn fetch(keyword: &str, column: EnumCPUData) -> Result<Option<eCPUDetails>, rusqlite::Error> {
-        Self::gen_db();
+        if !Self::check_if_db_exists() {
+            Self::gen_db()
+        }
 
         let column = match column {
             EnumCPUData::Intel(_) => panic!("Cannot use an Intel enum for an AMD query"),

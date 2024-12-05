@@ -1,7 +1,8 @@
 use std::{eprintln, format, fs, println, vec};
+use std::alloc;
 use amd::eAMDData;
 use rusqlite::{params, Connection, Error};
-use sysinfo::{CpuRefreshKind, RefreshKind, System};
+use sysinfo::{CpuRefreshKind, RefreshKind};
 use crate::cpu::amd::AMDData;
 use crate::cpu::eCPUDetails::Intel;
 use crate::cpu::intel::{eIntelData, IntelData};
@@ -20,11 +21,18 @@ pub trait Database: private::Database {
 }
 
 pub(crate) mod private {
+    use std::path::Path;
     use crate::cpu::eCPUDetails;
 
     pub trait Database {
         const DATABASE: &'static str = "res/db/cpu.db";
         const CPU_INFO_FOLDER: &'static str;
+        fn check_if_db_exists() -> bool {
+            if Path::new(Self::DATABASE).exists() {
+                log::debug!("Database exists");
+                Path::new(Self::DATABASE).exists()
+            } else {false}
+        }
         fn get_file_names(directory: String) -> Result<Vec<String>, std::io::Error> {
             Ok(Vec::new())
         }
@@ -99,8 +107,8 @@ pub enum eCPUDetails {
 
 impl CPUDetails {
     pub fn fetch() -> Self {
-        let s = System::new_with_specifics(
-            RefreshKind::new().with_cpu(CpuRefreshKind::everything())
+        let s = sysinfo::System::new_with_specifics(
+            RefreshKind::everything().with_cpu(CpuRefreshKind::everything())
         );
 
         let mut num_cores = Vec::new();
@@ -118,13 +126,6 @@ impl CPUDetails {
         let cores = num_cores.len();
         let model = Self::get_intel_model(brand.clone().as_str()).unwrap_or_default();
 
-        println!("Vendor: {}", vendor);
-        println!("Brand: {}", brand);
-        println!("Model: {}", model);
-        
-        IntelData::gen_db();
-        AMDData::gen_db();
-
         let details = if vendor == String::from("GenuineIntel") {
             let _temp = IntelData::fetch(
                 Self::get_intel_model(&brand).unwrap_or_default().as_str(),
@@ -133,11 +134,10 @@ impl CPUDetails {
 
             match _temp {
                 Ok(thing) => {
-                    println!("Fetched IntelData: {:?}", thing);
                     thing.unwrap_or(eCPUDetails::Else)
                 },
                 Err(err) => {
-                    println!("An error occurred while fetching CPU details: {}", err);
+                    eprintln!("An error occurred while fetching CPU details: {}", err);
                     eCPUDetails::Else
                 }
             }
@@ -150,11 +150,10 @@ impl CPUDetails {
             
             match _temp {
                 Ok(thing) => {
-                    println!("Fetched IntelData: {:?}", thing);
                     thing.unwrap_or(eCPUDetails::Else)
                 },
                 Err(err) => {
-                    println!("An error occurred while fetching CPU details: {}", err);
+                    eprintln!("An error occurred while fetching CPU details: {}", err);
                     eCPUDetails::Else
                 }
             }

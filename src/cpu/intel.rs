@@ -84,7 +84,9 @@ enum ProductStatus {
 
 impl crate::cpu::Database for IntelData {
     fn fetch(keyword: &str, column: EnumCPUData) -> Result<Option<eCPUDetails>, rusqlite::Error> {
-        Self::gen_db();
+        if !Self::check_if_db_exists() {
+            Self::gen_db()
+        }
 
         let column = match column {
             EnumCPUData::Intel(intel_col) => intel_col,
@@ -335,8 +337,6 @@ impl crate::cpu::private::Database for IntelData {
                 }
             }
             tx.commit()?;
-            println!("Successfully saved items to database");
-            dbg!(intel_items.len());
         }
         Ok(())
     }
