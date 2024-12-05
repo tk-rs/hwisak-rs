@@ -13,6 +13,8 @@ basically all the information in the ark.intel.com website.
 This is inspired by the [hwinfo](https://github.com/lfreist/hwinfo) C++ library, however I did not know how to use C++ 
 code in Rust, so I decided to make my own library but more "jam-packed".
 
+## Example
+
 ## How to use
 This project is both a library and a binary. The library can be used by other Rust projects, while the binary can be 
 run. 
@@ -41,8 +43,23 @@ To use the binary, run the cargo install command.
 cargo install hwisak-rs
 ```
 
+## Documentation
+I need to make documentation before publishing, so expect it to be on the way. 
+
 ## Contributions
-Anybody is free to contribute. 
+Anybody is free to contribute and is appreciated to fixing the spaghetti shitshow of code in this repo. 
+
+To play with the library, here is how to run it. 
+```shell
+git clone https://github.com/tk-rs/hwisak-rs
+cd hwisak-rs
+git submodule update --init --recursive
+
+cargo run # If you want to use the binary
+cargo build # To use the lib or binary
+
+cargo test # Not implemented yet, might do soon
+```
 
 ## Licence
 I took the dependencies as this library is just a compilation of all the popular system information crates. Therefore, 
